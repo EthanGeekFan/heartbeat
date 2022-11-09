@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>three.js webgl - particles - waves</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link type="text/css" rel="stylesheet" href="main.css">
+</head>
+
+<body>
+
+    <div id="info">
+        My Heartbeat particles
+    </div>
+
+    <script type="x-shader/x-vertex" id="vertexshader">
+
+			attribute float scale;
+
+			void main() {
+
+				vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+
+				gl_PointSize = scale * ( 300.0 / - mvPosition.z );
+
+				gl_Position = projectionMatrix * mvPosition;
+
+			}
+
+		</script>
+
+    <script type="x-shader/x-fragment" id="fragmentshader">
+
+			uniform vec3 color;
+
+			void main() {
+
+				if ( length( gl_PointCoord - vec2( 0.5, 0.5 ) ) > 0.475 ) discard;
+
+				gl_FragColor = vec4( color, 1.0 );
+
+			}
+
+		</script>
+
+    <!-- Import maps polyfill -->
+    <!-- Remove this when import maps will be widely supported -->
+    <script async src="https://unpkg.com/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+			{
+				"imports": {
+					"three": "./node_modules/three/build/three.module.js",
+                    "three/addons/": "./node_modules/three/examples/jsm/"
+				}
+			}
+		</script>
+
+    <script type="module">
+
+        import * as THREE from 'three';
+
+        import Stats from 'three/addons/libs/stats.module.js';
+
+        // const SEPARATION = 100, AMOUNTX = 50, AMOUNTY = 50;
+
+        const step = 5, minX = -130, maxX = 130, minY = -130, maxY = 130, minZ = -70, maxZ = 130;
+        const AMOUNTX = (maxX - minX) / step + 1;
+        const AMOUNTY = (maxY - minY) / step + 1;
+        const AMOUNTZ = (maxZ - minZ) / step + 1;
+
+        let container, stats;
+        let camera, scene, renderer;
+
+        let particles, time = 0;
+
+        let mouseX = 0, mouseY = 0;
+
+        let windowHalfX = window.innerWidth / 2;
+        let windowHalfY = window.innerHeight / 2;
+
+        init();
+        animate();
+
+        function getScale(x, y, z) {
+            let scale = 90 + (Math.sin(time / 4) + Math.cos(time / 2)) * 5;
+            x /= scale;
+            y /= scale;
+            z /= scale;
+            return Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 3) - x * x * y * y * y - 9 / 80 * z * z * y * y * y <= 0 ? 10 : 0;
+        }
+
+        function inHeart(x, y, z) {
+            let scale = 90 + (Math.sin(time / 4) + Math.cos(time / 2)) * 5;
+            x /= scale;
+            y /= scale;
+            z /= scale;
+            return Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 3) - x * x * y * y * y - 9 / 80 * z * z * y * y * y <= 0;
+        }
+
+        function vx(x, y, z) {
+            let scale = 90 + (Math.sin(time / 4) + Math.cos(time / 2)) * 5;
+            x /= scale;
+            y /= scale;
+            z /= scale;
+            return 6 * x * Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 2) - 2 * x * y * y * y;
+        }
+
+        function vy(x, y, z) {
+            let scale = 90 + (Math.sin(time / 4) + Math.cos(time / 2)) * 5;
+            x /= scale;
+            y /= scale;
+            z /= scale;
+            return 6 * y * Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 2) - 3 * y * y * x * x - 9 / 80 * z * z * y * 3 * y;
+        }
+
+        function vz(x, y, z) {
+            let scale = 90 + (Math.sin(time / 4) + Math.cos(time / 2)) * 5;
+            x /= scale;
+            y /= scale;
+            z /= scale;
+            return 27 / 2 * z * Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 2) - 9 / 40 * z * y * y * y;
+        }
+
+        function init() {
+
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 1, 10000);
+            camera.position.z = 1000;
+
+            scene = new THREE.Scene();
+
+            //
+
+            const numParticles = AMOUNTX * AMOUNTY * AMOUNTZ;
+
+            const positions = new Float32Array(numParticles * 3);
+            const scales = new Float32Array(numParticles);
+
+            let i = 0, j = 0;
+
+            for (let ix = 0; ix < AMOUNTX; ix++) {
+
+                for (let iy = 0; iy < AMOUNTY; iy++) {
+
+                    for (let iz = 0; iz < AMOUNTZ; iz++) {
+
+                        positions[i] = ix * step + minX + Math.random() * 5; // x
+                        positions[i + 1] = iy * step + minY + Math.random() * 5; // y
+                        positions[i + 2] = iz * step + minZ + Math.random() * 5; // z
+
+                        scales[j] = getScale(ix * step + minX, iy * step + minY, iz * step + minZ);
+
+                        i += 3;
+                        j++;
+
+                    }
+
+
+                }
+
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('scale', new THREE.BufferAttribute(scales, 1));
+
+            const material = new THREE.ShaderMaterial({
+
+                uniforms: {
+                    color: { value: new THREE.Color(0xc25160) },
+                },
+                vertexShader: document.getElementById('vertexshader').textContent,
+                fragmentShader: document.getElementById('fragmentshader').textContent
+
+            });
+
+            //
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            //
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            stats = new Stats();
+            container.appendChild(stats.dom);
+
+            container.style.touchAction = 'none';
+            container.addEventListener('pointermove', onPointerMove);
+
+            //
+
+            window.addEventListener('resize', onWindowResize);
+
+        }
+
+        function onWindowResize() {
+
+            windowHalfX = window.innerWidth / 2;
+            windowHalfY = window.innerHeight / 2;
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+        }
+
+        //
+
+        function onPointerMove(event) {
+
+            if (event.isPrimary === false) return;
+
+            mouseX = event.clientX - windowHalfX;
+            mouseY = event.clientY - windowHalfY;
+
+        }
+
+        //
+
+        function animate() {
+
+            requestAnimationFrame(animate);
+
+            render();
+            stats.update();
+
+        }
+
+        function render() {
+
+            camera.position.x += (mouseX - camera.position.x) * .05;
+            camera.position.y += (- mouseY - camera.position.y) * .05;
+            camera.lookAt(scene.position);
+
+            const positions = particles.geometry.attributes.position.array;
+            const scales = particles.geometry.attributes.scale.array;
+
+            let i = 0, j = 0;
+
+            for (let ix = 0; ix < AMOUNTX; ix++) {
+
+                for (let iy = 0; iy < AMOUNTY; iy++) {
+
+                    for (let iz = 0; iz < AMOUNTZ; iz++) {
+                        // positions[i] += vx(positions[i], positions[i + 1], positions[i + 2]) * (inHeart(positions[i], positions[i + 1], positions[i + 2]) ? 1 : -1);
+                        // positions[i + 1] -= vy(positions[i], positions[i + 1], positions[i + 2]) * (inHeart(positions[i], positions[i + 1], positions[i + 2]) ? 1 : -1);
+                        // positions[i + 2] -= vz(positions[i], positions[i + 1], positions[i + 2]) * (inHeart(positions[i], positions[i + 1], positions[i + 2]) ? 1 : -1);
+                        // scales[j] = getScale(positions[i], positions[i + 1], positions[i + 2]);
+                        // make points move towards the contour of the heart
+                        // positions[i] += vx(positions[i], positions[i + 1], positions[i + 2]) * 1;
+                        scales[j] = getScale(positions[i], positions[i + 1], positions[i + 2]);
+                        i += 3;
+                        j++;
+
+                    }
+
+                }
+
+            }
+
+            particles.geometry.attributes.position.needsUpdate = true;
+            particles.geometry.attributes.scale.needsUpdate = true;
+
+            renderer.render(scene, camera);
+
+            time += 0.1;
+
+        }
+
+    </script>
+</body>
+
+</html>
