@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <title>three.js webgl - particles - waves</title>
+    <title>Heartbeat 3D Particle</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <link type="text/css" rel="stylesheet" href="main.css">
@@ -11,7 +11,7 @@
 <body>
 
     <div id="info">
-        My Heartbeat particles
+        My heart beats for You
     </div>
 
     <script type="x-shader/x-vertex" id="vertexshader">
@@ -70,6 +70,8 @@
         const AMOUNTY = (maxY - minY) / step + 1;
         const AMOUNTZ = (maxZ - minZ) / step + 1;
 
+        const color = new THREE.Color(0xc25160);
+
         let container, stats;
         let camera, scene, renderer;
 
@@ -80,6 +82,8 @@
         let windowHalfX = window.innerWidth / 2;
         let windowHalfY = window.innerHeight / 2;
 
+        let initialPositions;
+
         init();
         animate();
 
@@ -88,7 +92,7 @@
             x /= scale;
             y /= scale;
             z /= scale;
-            return Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 3) - x * x * y * y * y - 9 / 80 * z * z * y * y * y <= 0 ? 10 : 0;
+            return Math.pow(x * x + 9 / 4 * z * z + y * y - 1, 3) - x * x * y * y * y - 9 / 80 * z * z * y * y * y <= 0 ? 10 + (Math.sin(time / 4) + Math.cos(time / 2)) * 1.5 : 0;
         }
 
         function inHeart(x, y, z) {
@@ -128,7 +132,7 @@
             container = document.createElement('div');
             document.body.appendChild(container);
 
-            camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 1, 10000);
+            camera = new THREE.PerspectiveCamera(18, window.innerWidth / window.innerHeight, 1, 10000);
             camera.position.z = 1000;
 
             scene = new THREE.Scene();
@@ -138,6 +142,7 @@
             const numParticles = AMOUNTX * AMOUNTY * AMOUNTZ;
 
             const positions = new Float32Array(numParticles * 3);
+            initialPositions = new Float32Array(numParticles * 3);
             const scales = new Float32Array(numParticles);
 
             let i = 0, j = 0;
@@ -148,11 +153,27 @@
 
                     for (let iz = 0; iz < AMOUNTZ; iz++) {
 
-                        positions[i] = ix * step + minX + Math.random() * 5; // x
-                        positions[i + 1] = iy * step + minY + Math.random() * 5; // y
-                        positions[i + 2] = iz * step + minZ + Math.random() * 5; // z
+                        // initialPositions[i] = ix * step + minX;
+                        // initialPositions[i + 1] = iy * step + minY;
+                        // initialPositions[i + 2] = iz * step + minZ;
+
+                        // positions[i] = initialPositions[i] + Math.random() * 30; // x
+                        // positions[i + 1] = initialPositions[i + 1] + Math.random() * 30; // y
+                        // positions[i + 2] = initialPositions[i + 2] + Math.random() * 30; // z
+
+                        positions[i] = ix * step + minX + Math.random() * 30; // x
+                        positions[i + 1] = iy * step + minY + Math.random() * 30; // y
+                        positions[i + 2] = iz * step + minZ + Math.random() * 30; // z
 
                         scales[j] = getScale(ix * step + minX, iy * step + minY, iz * step + minZ);
+                        if (!scales[j]) {
+                            positions[i] = 0;
+                            positions[i + 1] = 0;
+                            positions[i + 2] = 0;
+                        }
+                        initialPositions[i] = positions[i];
+                        initialPositions[i + 1] = positions[i + 1];
+                        initialPositions[i + 2] = positions[i + 2];
 
                         i += 3;
                         j++;
@@ -171,7 +192,7 @@
             const material = new THREE.ShaderMaterial({
 
                 uniforms: {
-                    color: { value: new THREE.Color(0xc25160) },
+                    color: { value: color },
                 },
                 vertexShader: document.getElementById('vertexshader').textContent,
                 fragmentShader: document.getElementById('fragmentshader').textContent
@@ -238,8 +259,10 @@
 
         function render() {
 
-            camera.position.x += (mouseX - camera.position.x) * .05;
-            camera.position.y += (- mouseY - camera.position.y) * .05;
+            // camera.position.x += (mouseX - camera.position.x) * .05;
+            // camera.position.y += (- mouseY - camera.position.y) * .05;
+            camera.position.x = -(Math.sin(time / 4) + Math.cos(time / 2)) * 50;
+            camera.position.y = -(Math.sin(time / 4) + Math.cos(time / 2)) * 50;
             camera.lookAt(scene.position);
 
             const positions = particles.geometry.attributes.position.array;
@@ -258,6 +281,18 @@
                         // scales[j] = getScale(positions[i], positions[i + 1], positions[i + 2]);
                         // make points move towards the contour of the heart
                         // positions[i] += vx(positions[i], positions[i + 1], positions[i + 2]) * 1;
+                        // if (initialPositions) {
+                        // positions[i] += (initialPositions[i] - positions[i]) * Math.random() * 4;
+                        // positions[i + 1] += (initialPositions[i + 1] - positions[i + 1]) * Math.random() * 4;
+                        // positions[i + 2] += (initialPositions[i + 2] - positions[i + 2]) * Math.random() * 4;
+                        // }
+                        let x = positions[i];
+                        let y = positions[i + 1];
+                        let z = positions[i + 2];
+                        let scale = (95 + (Math.sin(time / 4 + 0.5 * (x + y + z)) + Math.cos(time / 2 + 1)) * 3) / 100;
+                        positions[i] = scale * initialPositions[i];
+                        positions[i + 1] = scale * initialPositions[i + 1];
+                        positions[i + 2] = scale * initialPositions[i + 2];
                         scales[j] = getScale(positions[i], positions[i + 1], positions[i + 2]);
                         i += 3;
                         j++;
